@@ -1,6 +1,6 @@
 [package]
 name = "rbf"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Rafael Bachmann <rafael.bachmann.93@gmail.com>"]
 description = "Super simple const generics based ring buffer implementation for no_std"
 repository = "https://github.com/barafael/rbf-rs"
