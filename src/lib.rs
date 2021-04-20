@@ -76,9 +76,7 @@ impl<T: Default + Copy, const SIZE: usize> IntoIterator for RingBuffer<T, SIZE> 
     type IntoIter = ConsumingIntoIteratorRingbuffer<T, SIZE>;
 
     fn into_iter(self) -> Self::IntoIter {
-        ConsumingIntoIteratorRingbuffer {
-            buffer: self
-        }
+        ConsumingIntoIteratorRingbuffer { buffer: self }
     }
 }
 
