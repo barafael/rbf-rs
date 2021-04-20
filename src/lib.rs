@@ -12,6 +12,12 @@ pub struct RingBuffer<T, const SIZE: usize> {
     num_elems: usize,
 }
 
+/// Errors while handling a RingBuffer
+pub enum Error {
+    /// Requested 'push_unless_full' on full RingBuffer
+    BufferFull,
+}
+
 impl<T: Default + Copy, const SIZE: usize> Default for RingBuffer<T, SIZE> {
     fn default() -> Self {
         RingBuffer {
@@ -28,15 +34,30 @@ impl<T: Default + Copy, const SIZE: usize> RingBuffer<T, SIZE> {
         Default::default()
     }
 
-    /// Push something onto the buffer. If the buffer is full, the oldest element is overwritten.
-    pub fn push(&mut self, elem: T) {
-        let index: usize = (self.oldest + self.num_elems) % SIZE;
-        self.data[index] = elem;
-        if self.num_elems == SIZE {
+    /// Push something onto the buffer. If the buffer is full, the oldest element is returned.
+    pub fn push_overwrite(&mut self, elem: T) -> Option<T> {
+        let index = (self.oldest + self.num_elems) % SIZE;
+        if self.is_full() {
+            let oldest = self.data[self.oldest];
             self.oldest = (self.oldest + 1) % SIZE;
+            self.data[index] = elem;
+            Some(oldest)
         } else {
+            self.data[index] = elem;
             self.num_elems += 1;
+            None
         }
+    }
+
+    /// Push something onto the buffer, unless the buffer is full.
+    pub fn push_unless_full(&mut self, elem: T) -> Result<(), Error> {
+        if self.is_full() {
+            return Err(Error::BufferFull);
+        }
+        let index = (self.oldest + self.num_elems) % SIZE;
+        self.data[index] = elem;
+        self.num_elems += 1;
+        Ok(())
     }
 
     /// Pop the buffer. If it is empty, then None is returned.
@@ -137,7 +158,7 @@ mod tests {
         let mut buffer = RingBuffer::<u16, 8>::new();
         assert!(buffer.is_empty());
 
-        buffer.push(1);
+        buffer.push_overwrite(1);
         assert_eq!(1, buffer.len());
 
         let one = buffer.pop().unwrap();
@@ -154,20 +175,20 @@ mod tests {
     fn single_element() {
         let mut buffer = RingBuffer::<u8, 1>::new();
         assert!(buffer.is_empty());
-        buffer.push(1);
+        buffer.push_overwrite(1);
         assert!(buffer.is_full());
         assert_eq!(1, buffer.pop().unwrap());
-        buffer.push(2);
-        buffer.push(3);
+        buffer.push_overwrite(2);
+        buffer.push_overwrite(3);
         assert_eq!(3, buffer.pop().unwrap());
     }
 
     #[test]
     fn consuming_iterator() {
         let mut buffer = RingBuffer::<u8, 8>::new();
-        buffer.push(5);
-        buffer.push(125);
-        buffer.push(0);
+        buffer.push_overwrite(5);
+        buffer.push_overwrite(125);
+        buffer.push_overwrite(0);
         let mut iter = std::iter::IntoIterator::into_iter(buffer);
         assert_eq!(5, iter.next().unwrap());
         assert_eq!(125, iter.next().unwrap());
@@ -179,18 +200,18 @@ mod tests {
     #[test]
     fn iterator_immutable() {
         let mut buffer = RingBuffer::<u8, 4>::new();
-        buffer.push(1);
-        buffer.push(2);
-        buffer.push(3);
+        buffer.push_overwrite(1);
+        buffer.push_overwrite(2);
+        buffer.push_overwrite(3);
         let mut iter = std::iter::IntoIterator::into_iter(&buffer);
         assert_eq!(&1, iter.next().unwrap());
         assert_eq!(&2, iter.next().unwrap());
         assert_eq!(&3, iter.next().unwrap());
         assert_eq!(None, iter.next());
         assert_eq!(None, iter.next());
-        buffer.push(4);
-        buffer.push(5);
-        buffer.push(6);
+        buffer.push_overwrite(4);
+        buffer.push_overwrite(5);
+        buffer.push_overwrite(6);
         assert_eq!(4, buffer.len());
     }
 
@@ -198,9 +219,9 @@ mod tests {
     fn iter_convenience() {
         let mut buffer = RingBuffer::<u8, 4>::new();
 
-        buffer.push(1);
-        buffer.push(2);
-        buffer.push(3);
+        buffer.push_overwrite(1);
+        buffer.push_overwrite(2);
+        buffer.push_overwrite(3);
 
         let iter = std::iter::IntoIterator::into_iter(&buffer);
         let iter2 = buffer.iter();
@@ -208,5 +229,40 @@ mod tests {
         for (x, y) in iter.zip(iter2) {
             assert_eq!(x, y);
         }
+    }
+
+    #[test]
+    fn push_overwrite() {
+        let mut buffer = RingBuffer::<u128, 4>::new();
+        assert!(buffer.push_overwrite(1).is_none());
+        assert!(buffer.push_overwrite(2).is_none());
+        assert!(buffer.push_overwrite(3).is_none());
+        assert!(buffer.push_overwrite(4).is_none());
+        assert_eq!(1, buffer.push_overwrite(5).unwrap());
+        assert_eq!(2, buffer.push_overwrite(6).unwrap());
+        assert_eq!(3, buffer.push_overwrite(7).unwrap());
+        assert_eq!(4, buffer.push_overwrite(8).unwrap());
+        assert_eq!(5, buffer.push_overwrite(9).unwrap());
+        assert_eq!(4, buffer.len());
+        assert!(buffer.is_full());
+    }
+
+    #[test]
+    fn fail_overwrite() {
+        let mut buffer = RingBuffer::<u128, 4>::new();
+        assert!(buffer.push_overwrite(1).is_none());
+        assert!(buffer.push_overwrite(2).is_none());
+        assert!(buffer.push_overwrite(3).is_none());
+        assert!(buffer.push_overwrite(4).is_none());
+
+        assert!(buffer.push_unless_full(5).is_err());
+        assert!(buffer.push_unless_full(6).is_err());
+        match buffer.push_unless_full(192) {
+            Err(Error::BufferFull) => assert!(true),
+            _ => unreachable!("Wrong error variant!"),
+        }
+
+        assert_eq!(1, buffer.pop().unwrap());
+        assert!(buffer.push_unless_full(5).is_ok());
     }
 }
