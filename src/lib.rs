@@ -85,6 +85,15 @@ impl<T: Default + Copy, const SIZE: usize> RingBuffer<T, SIZE> {
     pub fn is_full(&self) -> bool {
         self.len() == SIZE
     }
+
+    /// Pop some elements into the buffer
+    pub fn pop_many(&mut self, buf: &mut [T]) -> usize {
+        let count = usize::min(self.len(), buf.len());
+        for p in buf.iter_mut().take(count) {
+            *p = self.pop().unwrap();
+        }
+        count
+    }
 }
 
 /// Consuming IntoIterator for Ringbuffer
@@ -264,5 +273,24 @@ mod tests {
 
         assert_eq!(1, buffer.pop().unwrap());
         assert!(buffer.push_unless_full(5).is_ok());
+    }
+
+    #[test]
+    fn pop_many() {
+        let mut buffer = RingBuffer::<u8, 4>::new();
+        buffer.push_overwrite(1);
+        buffer.push_overwrite(2);
+        buffer.push_overwrite(3);
+        buffer.push_overwrite(4);
+
+        let two = &mut [0, 0];
+        assert_eq!(2, buffer.pop_many(two));
+        assert_eq!(two, &[1, 2]);
+
+        assert_eq!(2, buffer.pop_many(two));
+        assert_eq!(two, &[3, 4]);
+
+        assert_eq!(0, buffer.pop_many(two));
+        assert_eq!(two, &[3, 4]);
     }
 }
