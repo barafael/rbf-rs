@@ -4,6 +4,8 @@
 #![deny(missing_docs)]
 #![cfg_attr(not(test), no_std)]
 
+use embedded_io::ErrorType;
+
 /// A RingBuffer holds SIZE elements of type T.
 pub struct RingBuffer<T, const SIZE: usize> {
     data: [T; SIZE],
@@ -13,8 +15,10 @@ pub struct RingBuffer<T, const SIZE: usize> {
 }
 
 /// Errors while handling a RingBuffer
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// Requested 'push_unless_full' on full RingBuffer
+    /// Buffer is full.
+    #[error("Buffer is full")]
     BufferFull,
 }
 
@@ -164,6 +168,24 @@ impl<T: Default + Copy, const SIZE: usize> RingBuffer<T, SIZE> {
     /// Make an immutable non-consuming iterator
     pub fn iter(&self) -> IntoIteratorRingbuffer<T, SIZE> {
         self.into_iter()
+    }
+}
+
+impl<T, const SIZE: usize> ErrorType for RingBuffer<T, SIZE> {
+    type Error = crate::Error;
+}
+
+impl embedded_io::Error for crate::Error {
+    fn kind(&self) -> embedded_io::ErrorKind {
+        match self {
+            Error::BufferFull => embedded_io::ErrorKind::OutOfMemory,
+        }
+    }
+}
+
+impl<const SIZE: usize> embedded_io::Read for RingBuffer<u8, SIZE> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        Ok(self.pop_many(buf))
     }
 }
 

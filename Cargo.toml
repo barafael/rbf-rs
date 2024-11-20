@@ -6,3 +6,7 @@ description = "Super simple const generics based ring buffer implementation for 
 repository = "https://github.com/barafael/rbf-rs"
 license-file = "LICENSE"
 edition = "2018"
+
+[dependencies]
+embedded-io = "0.6.1"
+thiserror = { version = "2.0.3", default-features = false }
