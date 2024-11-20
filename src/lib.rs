@@ -71,6 +71,15 @@ impl<T: Default + Copy, const SIZE: usize> RingBuffer<T, SIZE> {
         Some(elem)
     }
 
+    /// Peek at the next element in the buffer. None if buffer empty.
+    pub fn peek(&self) -> Option<&T> {
+        if self.is_empty() {
+            return None;
+        }
+        let elem = &self.data[self.oldest];
+        Some(elem)
+    }
+
     /// How many elements are in the buffer?
     pub fn len(&self) -> usize {
         self.num_elems
